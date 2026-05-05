@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -172,4 +174,128 @@ func withTokenRemote(dir, token, course, language string, fn func() error) error
 	}
 	defer setGitRemoteURL(dir, "bootcraft", cleanURL) //nolint:errcheck
 	return fn()
+}
+
+// suspiciousDirPrefixes lists directory names that should never be committed.
+// A staged path is flagged when its first path component matches one of these.
+var suspiciousDirPrefixes = []string{
+	"node_modules/",
+	"__pycache__/",
+	".venv/",
+	"venv/",
+	"target/",
+	"vendor/",
+	"dist/",
+	".next/",
+	".nuxt/",
+	"build/",
+	".gradle/",
+}
+
+// suspiciousExts lists file extensions that almost always indicate build
+// artefacts or compiled binaries — not source files meant for evaluation.
+var suspiciousExts = []string{
+	".pyc", ".pyo",
+	".class", ".jar", ".war", ".ear",
+	".o", ".a", ".so", ".exe",
+}
+
+// classifyStagedPaths returns the subset of paths that look like build
+// artefacts, dependency trees, or compiled binaries.  Extracted as a pure
+// function so it can be unit-tested without a real git repo.
+func classifyStagedPaths(paths []string) []string {
+	var flagged []string
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		pathSlash := filepath.ToSlash(path)
+
+		for _, prefix := range suspiciousDirPrefixes {
+			if strings.HasPrefix(pathSlash, prefix) || strings.Contains(pathSlash, "/"+prefix) {
+				flagged = append(flagged, path)
+				goto next
+			}
+		}
+		for _, ext := range suspiciousExts {
+			if strings.HasSuffix(strings.ToLower(pathSlash), ext) {
+				flagged = append(flagged, path)
+				goto next
+			}
+		}
+	next:
+	}
+	return flagged
+}
+
+// maxStagedSizeBytes is the client-side total staged file size limit.
+// Set to 20 MB — 2× the server's 10 MB packfile limit — to account for git
+// delta compression (packfiles are typically 30-70% smaller than raw files).
+// Oversized pushes are caught here with a friendly message before any data
+// is transferred; the server enforces the hard 10 MB packfile limit as backup.
+const maxStagedSizeBytes int64 = 20 << 20 // 20 MB
+
+// checkStagedFiles inspects the git index after "git add -A" and returns an
+// error if it finds files that look like build artefacts, dependency trees,
+// binaries, or if the total staged size exceeds the client-side limit.
+// This mirrors the safety net the old tar.gz Pack() provided.
+func checkStagedFiles(dir string) error {
+	out := runGit(dir, "diff", "--cached", "--name-only")
+	if out == "" {
+		return nil
+	}
+
+	paths := strings.Split(out, "\n")
+
+	flagged := classifyStagedPaths(paths)
+
+	// Size check: sum working-tree sizes of staged files.
+	// Uses os.Stat so it runs without extra git calls.
+	var totalSize int64
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		if info, err := os.Stat(filepath.Join(dir, filepath.FromSlash(p))); err == nil {
+			totalSize += info.Size()
+		}
+	}
+
+	if len(flagged) == 0 && totalSize <= maxStagedSizeBytes {
+		return nil
+	}
+
+	var sb strings.Builder
+
+	if len(flagged) > 0 {
+		const maxShow = 5
+		shown := flagged
+		extra := 0
+		if len(shown) > maxShow {
+			extra = len(shown) - maxShow
+			shown = shown[:maxShow]
+		}
+		sb.WriteString("❌ 检测到不应提交的文件（二进制/依赖包/编译产物）：\n")
+		for _, f := range shown {
+			sb.WriteString("   " + f + "\n")
+		}
+		if extra > 0 {
+			sb.WriteString(fmt.Sprintf("   ... 还有 %d 个文件\n", extra))
+		}
+		sb.WriteString("\n请将这些路径添加到 .gitignore 后重新运行 bootcraft submit\n")
+		sb.WriteString("例如：echo 'node_modules/' >> .gitignore")
+	}
+
+	if totalSize > maxStagedSizeBytes {
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString(fmt.Sprintf(
+			"❌ 提交文件总大小 %.1f MB 超过限制（%.0f MB）\n",
+			float64(totalSize)/(1<<20), float64(maxStagedSizeBytes)/(1<<20),
+		))
+		sb.WriteString("请检查是否有大文件未加入 .gitignore")
+	}
+
+	return errors.New(sb.String())
 }

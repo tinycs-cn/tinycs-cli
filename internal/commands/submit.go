@@ -78,7 +78,17 @@ func SubmitCommand(args []string) error {
 		return err
 	}
 
-	// 4. Build commit message
+	// Init API client (used for stage validation below and polling after push)
+	baseURL := cfg.GetAPIURL(*apiURL)
+	c := client.New(baseURL, token)
+
+	// 4. Validate --stage slug before touching git.
+	// Also enforces that freeform courses require an explicit --stage.
+	if err := validateStageSlug(c, course, *stage); err != nil {
+		return err
+	}
+
+	// 5. Build commit message
 	commitMsg := buildCommitMessage(*message, *stage)
 
 	if *dryRun {
@@ -93,6 +103,11 @@ func SubmitCommand(args []string) error {
 	ui.Print("📝 自动 commit 中...")
 	if err := runGitCmd(projectDir, "add", "-A"); err != nil {
 		return fmt.Errorf("git add 失败: %w", err)
+	}
+	if err := checkStagedFiles(projectDir); err != nil {
+		// Unstage everything so the repo is left in a clean state.
+		_ = runGitCmd(projectDir, "reset", "HEAD")
+		return err
 	}
 	if err := runGitCmd(projectDir, "commit", "--allow-empty", "-m", commitMsg); err != nil {
 		return fmt.Errorf("git commit 失败: %w", err)
@@ -110,8 +125,6 @@ func SubmitCommand(args []string) error {
 	}
 
 	// 7. Poll by-commit to discover submission ID
-	baseURL := cfg.GetAPIURL(*apiURL)
-	c := client.New(baseURL, token)
 	byCommit, err := pollByCommit(c, commitSHA, course, language)
 	if err != nil {
 		return err
@@ -196,6 +209,54 @@ func buildCommitMessage(customMsg, stageSlug string) string {
 		return base + " [stage=" + stageSlug + "]"
 	}
 	return base
+}
+
+// validateStageSlug checks that the given slug exists in the course's stage list.
+// It calls GET /v1/courses/{course} (public endpoint, no auth needed but client
+// sends token for consistency) and searches the returned stages.
+// Returns a user-friendly error with available slugs if not found.
+//
+// For freeform courses, stageSlug must be non-empty — this function enforces
+// that invariant so the user sees a clear error before any git operations.
+func validateStageSlug(c *client.Client, courseSlug, stageSlug string) error {
+	detail, err := c.GetCourse(courseSlug)
+	if err != nil {
+		// Don't block the user if the API is unreachable — let the push proceed
+		// and rely on server-side validation as fallback.
+		return nil
+	}
+
+	// Freeform courses require an explicit --stage flag.
+	if detail.ProgressionMode == "freeform" && stageSlug == "" {
+		var sb strings.Builder
+		for _, s := range detail.Stages {
+			fmt.Fprintf(&sb, "  %2d  %-26s %s\n", s.Position, s.Slug, s.Name)
+		}
+		return fmt.Errorf(
+			"❌ 该课程为随机挑战模式，必须用 --stage <slug> 指定关卡\n\n📋 可用关卡：\n%s",
+			sb.String(),
+		)
+	}
+
+	if stageSlug == "" {
+		return nil // sequential: server uses current_stage_id
+	}
+
+	for _, s := range detail.Stages {
+		if s.Slug == stageSlug {
+			return nil
+		}
+	}
+	// Build numbered hint list: "  4  array-deque          双端队列"
+	var sb strings.Builder
+	for _, s := range detail.Stages {
+		fmt.Fprintf(&sb, "  %2d  %-26s %s\n", s.Position, s.Slug, s.Name)
+	}
+	return fmt.Errorf(
+		"❌ 关卡不存在：%q\n\n📋 可用关卡（用 --stage <slug> 指定）：\n%s",
+		stageSlug,
+		sb.String(),
+	)
 }
 
 // pollByCommit polls GET /v1/cli/submissions/by-commit until the submission

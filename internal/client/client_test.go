@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -120,50 +119,6 @@ func TestGetCLIAuthToken(t *testing.T) {
 	}
 	if resp.Status != "pending" {
 		t.Errorf("expected pending, got %q", resp.Status)
-	}
-}
-
-func TestSubmit(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" || r.URL.Path != "/v1/cli/submit" {
-			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
-		}
-		ct := r.Header.Get("Content-Type")
-		if ct == "" {
-			t.Error("missing content-type")
-		}
-		if err := r.ParseMultipartForm(10 << 20); err != nil {
-			t.Fatal(err)
-		}
-		if r.FormValue("course") != "tinynum" {
-			t.Errorf("expected course tinynum, got %q", r.FormValue("course"))
-		}
-		if r.FormValue("language") != "python" {
-			t.Errorf("expected language python, got %q", r.FormValue("language"))
-		}
-		w.WriteHeader(201)
-		json.NewEncoder(w).Encode(map[string]any{
-			"submissionId": "sub-123",
-			"status":       "evaluating",
-			"stageSlug":    "E01",
-			"stageName":    "Test Stage",
-		})
-	}))
-	defer srv.Close()
-
-	c := New(srv.URL, "test-token")
-
-	buf := []byte("fake-archive-content")
-	resp, err := c.Submit(SubmitParams{
-		Course:   "tinynum",
-		Language: "python",
-		Archive:  bytes.NewReader(buf),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.SubmissionID != "sub-123" {
-		t.Errorf("expected sub-123, got %q", resp.SubmissionID)
 	}
 }
 
