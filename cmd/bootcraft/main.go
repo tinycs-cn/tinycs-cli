@@ -21,6 +21,8 @@ func main() {
 		err = commands.LoginCommand(os.Args[2:])
 	case "submit":
 		err = commands.SubmitCommand(os.Args[2:])
+	case "stages":
+		err = commands.StagesCommand(os.Args[2:])
 	case "version", "--version", "-v":
 		commands.VersionCommand()
 		return
@@ -51,6 +53,7 @@ func printUsage() {
 命令:
   login     登录 Bootcraft 平台
   submit    提交代码进行评测
+  stages    列出当前课程的所有关卡 slug
   version   显示版本信息
 
 选项:
@@ -60,6 +63,7 @@ func printUsage() {
   bootcraft login                     浏览器授权登录
   bootcraft login --token bc_xxx      使用 Token 登录
   bootcraft submit                    提交当前目录代码
-  bootcraft submit --stage softmax     指定评测关卡
-  bootcraft submit --dry-run          仅预览打包内容`)
+  bootcraft submit --stage softmax    指定评测关卡
+  bootcraft submit --dry-run          仅预览打包内容
+  bootcraft stages                    列出当前课程所有关卡 slug`)
 }

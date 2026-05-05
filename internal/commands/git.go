@@ -82,6 +82,8 @@ func formatPushError(err error, course, language string) error {
 			if nl := strings.IndexByte(msg, '\n'); nl >= 0 {
 				msg = msg[:nl]
 			}
+			msg = strings.TrimRight(msg, ")")
+			msg = strings.TrimSpace(msg)
 			return fmt.Errorf("❌ %s\n   请先在网页点击「完成本关」解锁下一关", msg)
 		}
 		return errors.New("❌ 该关卡尚未解锁，请先在网页点击「完成本关」解锁下一关")

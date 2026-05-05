@@ -70,8 +70,15 @@ bootcraft submit
 | ----------------- | ---------------------- |
 | `--stage <slug>`  | 指定评测关卡           |
 | `--dry-run`       | 仅预览打包文件，不上传 |
-| `--force`         | 跳过未提交变更确认     |
 | `--message <msg>` | 自定义提交备注         |
+
+### `bootcraft stages`
+
+列出当前课程的所有关卡序号、Slug 和名称。
+
+```bash
+bootcraft stages
+```
 
 ### `bootcraft version`
 
@@ -79,13 +86,17 @@ bootcraft submit
 
 ## 文件排除规则
 
-打包时会自动排除以下内容：
+提交基于 `git push`，排除规则与 git 一致：
 
-- `.git/`、`node_modules/`、`__pycache__/`、`.venv/`、`target/` 等常见构建目录
-- `.gitignore` 中列出的文件
-- `.bootcraftignore` 中列出的文件（可选，格式同 `.gitignore`）
+- `.gitignore` 中列出的文件自动排除
+- `node_modules/`、`__pycache__/`、`.venv/`、`target/` 等常见构建目录若未在 `.gitignore` 中，CLI 会在提交前报错提示添加
 
-`bootcraft.yml` 始终包含在提交中。使用 `--dry-run` 可预览最终打包文件列表。
+提交前会自动检查：
+
+- **二进制/依赖包/编译产物** — 检测到后报错，需加入 `.gitignore`
+- **总文件大小超过 20 MB** — 超限后报错，需清理大文件
+
+使用 `--dry-run` 可预览将执行的 git 操作。
 
 ## 环境变量
 
