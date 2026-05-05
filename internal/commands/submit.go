@@ -9,12 +9,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/bootcraft-cn/cli/internal/archive"
 	"github.com/bootcraft-cn/cli/internal/client"
 	"github.com/bootcraft-cn/cli/internal/config"
 	"github.com/bootcraft-cn/cli/internal/ui"
@@ -38,24 +36,28 @@ func trackURLPath(track string) string {
 	}
 }
 
+// SubmitCommand implements "bootcraft submit".
+//
+// v2 flow (git push based):
+//  1. Load auth token from config
+//  2. Resolve course + language + project dir (remote URL → bootcraft.yml fallback)
+//  3. Ensure "bootcraft" remote exists with clean URL
+//  4. Build commit message (injecting [stage=xxx] if --stage given)
+//  5. git add -A && git commit --allow-empty
+//  6. git push bootcraft HEAD:main  (token embedded temporarily, restored by defer)
+//  7. Poll GET /v1/cli/submissions/by-commit (6×500ms) to get submission ID
+//  8. Stream eval logs via SSE → render final result
 func SubmitCommand(args []string) error {
 	flags := flag.NewFlagSet("submit", flag.ContinueOnError)
 	stage := flags.String("stage", "", "指定评测关卡 (slug)")
-	message := flags.String("message", "", "自定义提交备注")
-	dryRun := flags.Bool("dry-run", false, "仅预览打包文件，不上传")
-	force := flags.Bool("force", false, "跳过未提交变更确认")
+	message := flags.String("message", "", "自定义 commit message（默认：\"bootcraft submit\"）")
+	dryRun := flags.Bool("dry-run", false, "打印将执行的 git 命令，不实际推送")
 	apiURL := flags.String("api-url", "", "API 地址（内部测试用）")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 
-	// 1. Find bootcraft.yml
-	meta, projectDir, err := findBootcraftConfig()
-	if err != nil {
-		return err
-	}
-
-	// 2. Auth
+	// 1. Auth
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("加载配置失败: %w", err)
@@ -65,99 +67,167 @@ func SubmitCommand(args []string) error {
 		return errors.New("未登录，请先运行: bootcraft login")
 	}
 
-	baseURL := cfg.GetAPIURL(*apiURL)
-	c := client.New(baseURL, token)
-
-	// 3. Git commit info
-	commitSHA := runGit(projectDir, "rev-parse", "HEAD")
-	commitMsg := runGit(projectDir, "log", "-1", "--format=%s")
-	if *message != "" {
-		commitMsg = *message
-	}
-
-	// 4. Check uncommitted changes
-	if commitSHA != "" {
-		dirty := runGit(projectDir, "status", "--porcelain")
-		if dirty != "" {
-			ui.Warn("⚠ 检测到未提交变更，提交结果将不关联 git commit 记录。建议先 git commit 后再提交。")
-			if !*force && ui.IsTTY() {
-				if !ui.Confirm("继续提交？[y/N]") {
-					return errors.New("已取消")
-				}
-			}
-			commitSHA = ""
-			if *message == "" {
-				commitMsg = ""
-			}
-		}
-	}
-
-	// 5. Pack
-	ui.Print("📦 打包代码中...")
-	buf, fileCount, totalSize, err := archive.Pack(projectDir)
-	if err != nil {
-		return fmt.Errorf("打包失败: %w", err)
-	}
-	ui.Printf(" (%d 个文件, %s)\n", fileCount, formatBytes(totalSize))
-
-	// Client-side pre-checks
-	const maxFileCount = 200
-	const maxTotalSize = 8 * 1024 * 1024
-	const maxCompressed = 2 * 1024 * 1024
-	if fileCount > maxFileCount {
-		return fmt.Errorf("文件数量超限（%d > %d），请检查 .gitignore / .bootcraftignore", fileCount, maxFileCount)
-	}
-	if totalSize > maxTotalSize {
-		return fmt.Errorf("代码包解压后大小超限（%s > 8MB），请排除不必要的文件", formatBytes(totalSize))
-	}
-	if int64(buf.Len()) > maxCompressed {
-		return fmt.Errorf("代码包压缩后大小超限（%s > 2MB），请排除不必要的文件", formatBytes(int64(buf.Len())))
-	}
-
-	if *dryRun {
-		ui.Println("[dry-run] 仅预览，不上传")
-		return nil
-	}
-
-	// 6. Upload
-	ui.Print("🚀 上传到评测服务...")
-	submitResp, err := c.Submit(client.SubmitParams{
-		Course:        meta.Course,
-		Language:      meta.Language,
-		Stage:         *stage,
-		Archive:       buf,
-		CommitSHA:     commitSHA,
-		CommitMessage: commitMsg,
-	})
-	if err != nil {
-		var apiErr *client.APIError
-		if errors.As(err, &apiErr) {
-			switch {
-			case apiErr.StatusCode == http.StatusUnauthorized || apiErr.Code == "UNAUTHORIZED":
-				return errors.New("\nToken 已失效，请重新登录: bootcraft login")
-			case apiErr.Code == "REPO_NOT_FOUND":
-				return fmt.Errorf("\n未找到仓库记录（课程: %s，语言: %s）\n请先前往 https://www.bootcraft.cn 创建该课程的仓库，再重新提交", meta.Course, meta.Language)
-			case apiErr.StatusCode == http.StatusConflict:
-				return fmt.Errorf("\n%s", apiErr.Message)
-			case apiErr.StatusCode == http.StatusForbidden:
-				return fmt.Errorf("\n%s", apiErr.Message)
-			}
-		}
-		return fmt.Errorf("\n上传失败: %w", err)
-	}
-	ui.Println(" 完成")
-	ui.Printf("📋 Stage: %s「%s」\n", submitResp.StageSlug, submitResp.StageName)
-	ui.Printf("🆔 Submission: %s\n", submitResp.SubmissionID)
-
-	// 7. Watch evaluation
-	result, skipLogs, err := watchSubmission(c, submitResp.SubmissionID)
+	// 2. Resolve course + language + project dir
+	course, language, projectDir, err := resolveProject()
 	if err != nil {
 		return err
 	}
 
-	// 8. Render result
+	// 3. Ensure bootcraft remote exists (clean URL, no token)
+	if err := ensureBootcraftRemote(projectDir, course, language); err != nil {
+		return err
+	}
+
+	// 4. Build commit message
+	commitMsg := buildCommitMessage(*message, *stage)
+
+	if *dryRun {
+		ui.Println("[dry-run] 将执行以下操作：")
+		ui.Printf("  git -C %q add -A\n", projectDir)
+		ui.Printf("  git -C %q commit --allow-empty -m %q\n", projectDir, commitMsg)
+		ui.Printf("  git -C %q push bootcraft HEAD:main\n", projectDir)
+		return nil
+	}
+
+	// 5. Auto-commit
+	ui.Print("📝 自动 commit 中...")
+	if err := runGitCmd(projectDir, "add", "-A"); err != nil {
+		return fmt.Errorf("git add 失败: %w", err)
+	}
+	if err := runGitCmd(projectDir, "commit", "--allow-empty", "-m", commitMsg); err != nil {
+		return fmt.Errorf("git commit 失败: %w", err)
+	}
+	commitSHA := runGit(projectDir, "rev-parse", "HEAD")
+	ui.Printf(" (commit: %.7s)\n", commitSHA)
+
+	// 6. git push (token embedded in remote URL, restored by withTokenRemote's defer)
+	ui.Println("🚀 推送到 Bootcraft...")
+	pushErr := withTokenRemote(projectDir, token, course, language, func() error {
+		return runGitPush(projectDir)
+	})
+	if pushErr != nil {
+		return formatPushError(pushErr, course, language)
+	}
+
+	// 7. Poll by-commit to discover submission ID
+	baseURL := cfg.GetAPIURL(*apiURL)
+	c := client.New(baseURL, token)
+	byCommit, err := pollByCommit(c, commitSHA, course, language)
+	if err != nil {
+		return err
+	}
+	ui.Printf("📋 Stage: %s「%s」\n", byCommit.StageSlug, byCommit.StageName)
+	ui.Printf("🆔 Submission: %s\n", byCommit.SubmissionID)
+
+	// 8. Stream eval logs + render result
+	result, skipLogs, err := watchSubmission(c, byCommit.SubmissionID)
+	if err != nil {
+		return err
+	}
 	return renderResult(result, skipLogs)
 }
+
+// resolveProject returns course, language, and the git repo root directory.
+//
+// Resolution order:
+//  1. "bootcraft" remote URL (daily path — no files needed)
+//  2. bootcraft.yml walking up from cwd (first-time setup path)
+//
+// The returned projectDir is always the git repo root (from git rev-parse
+// --show-toplevel), which is the correct base for all git sub-commands.
+func resolveProject() (course, language, projectDir string, err error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", "", "", fmt.Errorf("获取当前目录失败: %w", err)
+	}
+
+	projectDir, err = gitRootDir(cwd)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// ① Remote URL (covers 99% of daily submits once remote is configured)
+	remoteURL := runGit(projectDir, "remote", "get-url", "bootcraft")
+	if remoteURL != "" {
+		c, l, rerr := parseRepoSlug(remoteURL)
+		if rerr == nil {
+			return c, l, projectDir, nil
+		}
+		// URL exists but not a recognisable bootcraft slug — fall through to yml
+	}
+
+	// ② bootcraft.yml — walk up from cwd (mirrors v1 behaviour for nested projects)
+	dir := cwd
+	for {
+		configPath := filepath.Join(dir, "bootcraft.yml")
+		data, ferr := os.ReadFile(configPath)
+		if ferr == nil {
+			var meta bootcraftMeta
+			if yerr := yaml.Unmarshal(data, &meta); yerr == nil &&
+				meta.Course != "" && meta.Language != "" {
+				return meta.Course, meta.Language, projectDir, nil
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	return "", "", "", errors.New(
+		"找不到 Bootcraft remote，请在课程目录中运行，\n" +
+			"或先到 https://www.bootcraft.cn 创建仓库后克隆模版",
+	)
+}
+
+// buildCommitMessage constructs the git commit message for a submit.
+//
+//	No flags          → "bootcraft submit"
+//	--stage s03       → "bootcraft submit [stage=s03]"
+//	--message "msg"   → "msg"
+//	--message + stage → "msg [stage=s03]"
+func buildCommitMessage(customMsg, stageSlug string) string {
+	base := "bootcraft submit"
+	if customMsg != "" {
+		base = customMsg
+	}
+	if stageSlug != "" {
+		return base + " [stage=" + stageSlug + "]"
+	}
+	return base
+}
+
+// pollByCommit polls GET /v1/cli/submissions/by-commit until the submission
+// created by the recent git push is visible, or timeout is reached.
+//
+// Strategy: 6 attempts × 500ms = ~3s total.  HandlePush runs synchronously
+// post-ack on the server side (~50–100ms), so the first poll usually hits.
+func pollByCommit(c *client.Client, commitSHA, courseSlug, languageSlug string) (*client.ByCommitResponse, error) {
+	spinner := ui.NewSpinner("等待提交创建")
+	defer spinner.Stop()
+
+	const maxRetries = 6
+	const interval = 500 * time.Millisecond
+
+	for i := 0; i < maxRetries; i++ {
+		if i > 0 {
+			time.Sleep(interval)
+		}
+		resp, err := c.GetSubmissionByCommit(commitSHA, courseSlug, languageSlug)
+		if err == nil {
+			return resp, nil
+		}
+		var apiErr *client.APIError
+		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+			continue // submission not yet written to DB — retry
+		}
+		return nil, fmt.Errorf("查询提交状态失败: %w", err)
+	}
+	return nil, errors.New("等待提交创建超时，建议前往网页查看结果")
+}
+
+// --- evaluation log streaming (unchanged from v1) ---
 
 func watchSubmission(c *client.Client, submissionID string) (*client.SubmissionStatusResponse, bool, error) {
 	tokenResp, err := c.GetTriggerToken(submissionID)
@@ -177,7 +247,6 @@ func watchSubmission(c *client.Client, submissionID string) (*client.SubmissionS
 }
 
 func streamEvalLogs(c *client.Client, submissionID, streamURL, accessToken string) (*client.SubmissionStatusResponse, error) {
-	// Context cancelled 3s after evaluation completes, giving SSE time to flush remaining logs
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -192,7 +261,6 @@ func streamEvalLogs(c *client.Client, submissionID, streamURL, accessToken strin
 			}
 			if client.IsTerminalStatus(status.Status) {
 				finalResult = status
-				// Grace period: let SSE flush remaining log chunks before cancelling
 				time.Sleep(3 * time.Second)
 				cancel()
 				return
@@ -255,8 +323,6 @@ func streamEvalLogs(c *client.Client, submissionID, streamURL, accessToken strin
 	if finalResult != nil {
 		return finalResult, nil
 	}
-	// SSE ended before the poller saw a terminal status (callback not yet written to DB).
-	// Poll briefly until we get a terminal status.
 	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		status, err := c.GetSubmissionStatus(submissionID)
@@ -289,7 +355,7 @@ func pollSubmission(c *client.Client, submissionID string) (*client.SubmissionSt
 }
 
 func renderResult(result *client.SubmissionStatusResponse, skipLogs bool) error {
-	fmt.Println() // blank line before result
+	fmt.Println()
 	durationStr := ""
 	if result.DurationMs != nil {
 		durationStr = fmt.Sprintf(" (%.1fs)", float64(*result.DurationMs)/1000)
@@ -329,54 +395,4 @@ func renderResult(result *client.SubmissionStatusResponse, skipLogs bool) error 
 	default:
 		return fmt.Errorf("未知评测状态: %s", result.Status)
 	}
-}
-
-func findBootcraftConfig() (*bootcraftMeta, string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return nil, "", err
-	}
-	for {
-		configPath := filepath.Join(dir, "bootcraft.yml")
-		data, err := os.ReadFile(configPath)
-		if err == nil {
-			var meta bootcraftMeta
-			if err := yaml.Unmarshal(data, &meta); err != nil {
-				return nil, "", fmt.Errorf("解析 bootcraft.yml 失败: %w", err)
-			}
-			if meta.Course == "" || meta.Language == "" {
-				return nil, "", errors.New("bootcraft.yml 缺少 course 或 language 字段")
-			}
-			return &meta, dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return nil, "", errors.New("找不到 bootcraft.yml，请在课程目录中运行此命令")
-}
-
-func runGit(dir string, args ...string) string {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
-func formatBytes(b int64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%dB", b)
-	}
-	kb := float64(b) / float64(unit)
-	if kb < 1024 {
-		return fmt.Sprintf("%.1fKB", kb)
-	}
-	mb := kb / 1024
-	return fmt.Sprintf("%.1fMB", mb)
 }
