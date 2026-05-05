@@ -74,6 +74,17 @@ func formatPushError(err error, course, language string) error {
 	}
 	s := pushErr.Stderr
 	switch {
+	case strings.Contains(s, "尚未解锁"):
+		// Extract and surface the server's message directly.
+		// e.g. "ng 该关卡尚未解锁，请先完成前面的关卡"
+		if i := strings.Index(s, "ng "); i >= 0 {
+			msg := strings.TrimSpace(s[i+3:])
+			if nl := strings.IndexByte(msg, '\n'); nl >= 0 {
+				msg = msg[:nl]
+			}
+			return fmt.Errorf("❌ %s\n   请先在网页点击「完成本关」解锁下一关", msg)
+		}
+		return errors.New("❌ 该关卡尚未解锁，请先在网页点击「完成本关」解锁下一关")
 	case strings.Contains(s, "non-fast-forward"):
 		return errors.New("❌ 推送被拒绝（non-fast-forward）\n   请运行: git pull bootcraft main --rebase")
 	case strings.Contains(s, "rejected"):
