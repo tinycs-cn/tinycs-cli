@@ -14,7 +14,7 @@ func TestSaveAndLoad(t *testing.T) {
 	t.Setenv("USERPROFILE", tmpDir) // Windows uses USERPROFILE
 
 	cfg := &Config{
-		Token:  "bc_test123",
+		Token:  "tcs_test123",
 		APIURL: "https://test.example.com",
 	}
 	if err := cfg.Save(); err != nil {
@@ -22,7 +22,7 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 
 	// Check file permissions (Windows 不支持 POSIX 权限位)
-	info, err := os.Stat(filepath.Join(tmpDir, ".bootcraft", "config.yml"))
+	info, err := os.Stat(filepath.Join(tmpDir, ".tinycs", "config.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,8 +36,8 @@ func TestSaveAndLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.Token != "bc_test123" {
-		t.Errorf("expected token bc_test123, got %q", loaded.Token)
+	if loaded.Token != "tcs_test123" {
+		t.Errorf("expected token tcs_test123, got %q", loaded.Token)
 	}
 	if loaded.APIURL != "https://test.example.com" {
 		t.Errorf("expected api_url https://test.example.com, got %q", loaded.APIURL)
@@ -60,7 +60,7 @@ func TestLoadNonExistent(t *testing.T) {
 
 func TestGetToken_EnvOverride(t *testing.T) {
 	cfg := &Config{Token: "from_config"}
-	t.Setenv("BOOTCRAFT_TOKEN", "from_env")
+	t.Setenv("TINYCS_TOKEN", "from_env")
 
 	got := cfg.GetToken()
 	if got != "from_env" {

@@ -50,12 +50,12 @@ func runGitCmd(dir string, args ...string) error {
 	return nil
 }
 
-// runGitPush runs "git push bootcraft HEAD:main" in dir.
+// runGitPush runs "git push tinycs HEAD:main" in dir.
 // Git output (progress lines) is suppressed for a clean CLI UX.
 // On failure, returns *gitPushError with the captured stderr.
 func runGitPush(dir string) error {
 	var stderrBuf bytes.Buffer
-	cmd := exec.Command("git", "push", "bootcraft", "HEAD:main")
+	cmd := exec.Command("git", "push", "tinycs", "HEAD:main")
 	cmd.Dir = dir
 	cmd.Stdout = io.Discard
 	cmd.Stderr = &stderrBuf
@@ -88,17 +88,17 @@ func formatPushError(err error, course, language string) error {
 		}
 		return errors.New("❌ 该关卡尚未解锁，请先在网页点击「完成本关」解锁下一关")
 	case strings.Contains(s, "non-fast-forward"):
-		return errors.New("❌ 推送被拒绝（non-fast-forward）\n   请运行: git pull bootcraft main --rebase")
+		return errors.New("❌ 推送被拒绝（non-fast-forward）\n   请运行: git pull tinycs main --rebase")
 	case strings.Contains(s, "rejected"):
 		return fmt.Errorf("❌ 推送被拒绝:\n%s", strings.TrimSpace(s))
 	case strings.Contains(s, "Authentication failed") ||
 		strings.Contains(s, "403") || strings.Contains(s, "401"):
-		return errors.New("❌ 认证失败，请重新登录: bootcraft login")
+		return errors.New("❌ 认证失败，请重新登录: tinycs login")
 	case strings.Contains(s, "server busy"):
 		return errors.New("❌ 服务器繁忙，请稍后重试")
 	case strings.Contains(s, "not found") || strings.Contains(s, "仓库不存在"):
 		return fmt.Errorf(
-			"❌ 推送失败：未找到仓库记录（%s / %s）\n   请先前往 https://www.bootcraft.cn 创建该课程的仓库，再重新提交",
+			"❌ 推送失败：未找到仓库记录（%s / %s）\n   请先前往 https://www.tinycs.cn 创建该课程的仓库，再重新提交",
 			course, language,
 		)
 	default:
@@ -121,9 +121,9 @@ func gitRootDir(startDir string) (string, error) {
 	return strings.TrimSpace(out.String()), nil
 }
 
-// parseRepoSlug extracts course and language from a bootcraft remote URL.
+// parseRepoSlug extracts course and language from a tinycs remote URL.
 //
-//	"https://git.bootcraft.cn/tinydsa-java.git" → ("tinydsa", "java")
+//	"https://git.tinycs.cn/tinydsa-java.git" → ("tinydsa", "java")
 //
 // Uses strings.LastIndex("-") identical to the server's ParseRepoSlug logic,
 // so "my-course-go" correctly yields ("my-course", "go").
@@ -145,7 +145,7 @@ var tokenRe = regexp.MustCompile(`(https?://)([^@]+@)`)
 
 // stripToken removes embedded credentials from a git remote URL.
 //
-//	"https://x:TOKEN@git.bootcraft.cn/..." → "https://git.bootcraft.cn/..."
+//	"https://x:TOKEN@git.tinycs.cn/..." → "https://git.tinycs.cn/..."
 func stripToken(rawURL string) string {
 	return tokenRe.ReplaceAllString(rawURL, "$1")
 }
@@ -155,37 +155,37 @@ func setGitRemoteURL(dir, remote, rawURL string) error {
 	return runGitCmd(dir, "remote", "set-url", remote, rawURL)
 }
 
-// ensureBootcraftRemote makes sure the "bootcraft" remote exists in dir with
+// ensureTinycsRemote makes sure the "tinycs" remote exists in dir with
 // the canonical clean URL (no embedded token).  It creates the remote if
 // absent, or normalises the URL if it was left with a token from a previous
 // interrupted push.
-func ensureBootcraftRemote(dir, course, language string) error {
-	cleanURL := fmt.Sprintf("https://git.bootcraft.cn/%s-%s.git", course, language)
-	existing := runGit(dir, "remote", "get-url", "bootcraft")
+func ensureTinycsRemote(dir, course, language string) error {
+	cleanURL := fmt.Sprintf("https://git.tinycs.cn/%s-%s.git", course, language)
+	existing := runGit(dir, "remote", "get-url", "tinycs")
 	if existing == "" {
-		if err := runGitCmd(dir, "remote", "add", "bootcraft", cleanURL); err != nil {
-			return fmt.Errorf("添加 bootcraft remote 失败: %w", err)
+		if err := runGitCmd(dir, "remote", "add", "tinycs", cleanURL); err != nil {
+			return fmt.Errorf("添加 tinycs remote 失败: %w", err)
 		}
 		return nil
 	}
 	if stripToken(existing) != cleanURL {
-		if err := setGitRemoteURL(dir, "bootcraft", cleanURL); err != nil {
-			return fmt.Errorf("更新 bootcraft remote 失败: %w", err)
+		if err := setGitRemoteURL(dir, "tinycs", cleanURL); err != nil {
+			return fmt.Errorf("更新 tinycs remote 失败: %w", err)
 		}
 	}
 	return nil
 }
 
-// withTokenRemote temporarily embeds the auth token in the "bootcraft" remote
+// withTokenRemote temporarily embeds the auth token in the "tinycs" remote
 // URL, calls fn(), then restores the clean URL via defer — so the token is
 // never stored persistently in .git/config.
 func withTokenRemote(dir, token, course, language string, fn func() error) error {
-	authURL := fmt.Sprintf("https://x:%s@git.bootcraft.cn/%s-%s.git", token, course, language)
-	cleanURL := fmt.Sprintf("https://git.bootcraft.cn/%s-%s.git", course, language)
-	if err := setGitRemoteURL(dir, "bootcraft", authURL); err != nil {
+	authURL := fmt.Sprintf("https://x:%s@git.tinycs.cn/%s-%s.git", token, course, language)
+	cleanURL := fmt.Sprintf("https://git.tinycs.cn/%s-%s.git", course, language)
+	if err := setGitRemoteURL(dir, "tinycs", authURL); err != nil {
 		return fmt.Errorf("设置 remote URL 失败: %w", err)
 	}
-	defer setGitRemoteURL(dir, "bootcraft", cleanURL) //nolint:errcheck
+	defer setGitRemoteURL(dir, "tinycs", cleanURL) //nolint:errcheck
 	return fn()
 }
 
@@ -295,7 +295,7 @@ func checkStagedFiles(dir string) error {
 		if extra > 0 {
 			sb.WriteString(fmt.Sprintf("   ... 还有 %d 个文件\n", extra))
 		}
-		sb.WriteString("\n请将这些路径添加到 .gitignore 后重新运行 bootcraft submit\n")
+		sb.WriteString("\n请将这些路径添加到 .gitignore 后重新运行 tinycs submit\n")
 		sb.WriteString("例如：echo 'node_modules/' >> .gitignore")
 	}
 

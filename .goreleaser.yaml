@@ -1,23 +1,23 @@
-# GoReleaser configuration for bootcraft-cli
+# GoReleaser configuration for tinycs-cli
 # Docs: https://goreleaser.com
 #
 # Asset naming is intentionally STABLE (no version suffix) so the GitHub Action
 # auto-submit workflow in student starters can curl
-#   https://github.com/bootcraft-cn/bootcraft-cli/releases/latest/download/bootcraft-linux-amd64
-# directly. See bootcraft-cli/docs/github-action/workflow-template.yml.
+#   https://github.com/tinycs-cn/tinycs-cli/releases/latest/download/tinycs-linux-amd64
+# directly. See tinycs-cli/docs/github-action/workflow-template.yml.
 
 version: 2
 
-project_name: bootcraft
+project_name: tinycs
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - id: bootcraft
-    main: ./cmd/bootcraft
-    binary: bootcraft
+  - id: tinycs
+    main: ./cmd/tinycs
+    binary: tinycs
     env:
       - CGO_ENABLED=0
     goos:
@@ -29,15 +29,15 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/bootcraft-cn/cli/internal/version.Version={{ .Version }}
-      - -X github.com/bootcraft-cn/cli/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/tinycs-cn/cli/internal/version.Version={{ .Version }}
+      - -X github.com/tinycs-cn/cli/internal/version.Commit={{ .ShortCommit }}
 
-# Raw binary uploads (no tar.gz) — keeps `curl ... -o bootcraft && chmod +x`
+# Raw binary uploads (no tar.gz) — keeps `curl ... -o tinycs && chmod +x`
 # usage trivial. Windows variant gets `.exe` appended automatically by GoReleaser.
 archives:
   - id: binaries
     formats: [binary]
-    name_template: "bootcraft-{{ .Os }}-{{ .Arch }}"
+    name_template: "tinycs-{{ .Os }}-{{ .Arch }}"
 
 checksum:
   name_template: "checksums.txt"
@@ -53,16 +53,16 @@ release:
   extra_files:
     - glob: scripts/install.sh
   header: |
-    ## bootcraft-cli {{ .Tag }}
+    ## tinycs-cli {{ .Tag }}
 
     **macOS / Linux:**
     ```bash
-    curl -fsSL https://github.com/bootcraft-cn/bootcraft-cli/releases/latest/download/install.sh | sh
+    curl -fsSL https://github.com/tinycs-cn/tinycs-cli/releases/latest/download/install.sh | sh
     ```
 
     **Windows (PowerShell):**
     ```powershell
-    irm https://github.com/bootcraft-cn/bootcraft-cli/releases/latest/download/bootcraft-windows-amd64.exe -OutFile bootcraft.exe
+    irm https://github.com/tinycs-cn/tinycs-cli/releases/latest/download/tinycs-windows-amd64.exe -OutFile tinycs.exe
     ```
 
 changelog:

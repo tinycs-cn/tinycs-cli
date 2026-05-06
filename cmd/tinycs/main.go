@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bootcraft-cn/cli/internal/commands"
+	"github.com/tinycs-cn/cli/internal/commands"
 )
 
 func main() {
@@ -45,13 +45,13 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println(`bootcraft — Bootcraft 平台 CLI 工具
+	fmt.Println(`tinycs — Tinycs 平台 CLI 工具
 
 用法:
-  bootcraft <命令> [选项]
+  tinycs <命令> [选项]
 
 命令:
-  login     登录 Bootcraft 平台
+  login     登录 Tinycs 平台
   submit    提交代码进行评测
   stages    列出当前课程的所有关卡 slug
   version   显示版本信息
@@ -60,10 +60,10 @@ func printUsage() {
   --help    显示帮助信息
 
 示例:
-  bootcraft login                     浏览器授权登录
-  bootcraft login --token bc_xxx      使用 Token 登录
-  bootcraft submit                    提交当前目录代码
-  bootcraft submit --stage softmax    指定评测关卡
-  bootcraft submit --dry-run          仅预览打包内容
-  bootcraft stages                    列出当前课程所有关卡 slug`)
+  tinycs login                     浏览器授权登录
+  tinycs login --token tcs_xxx      使用 Token 登录
+  tinycs submit                    提交当前目录代码
+  tinycs submit --stage softmax    指定评测关卡
+  tinycs submit --dry-run          仅预览打包内容
+  tinycs stages                    列出当前课程所有关卡 slug`)
 }

@@ -1,11 +1,11 @@
 #!/bin/sh
-# bootcraft-cli installer for Linux and macOS
-# Usage: curl -fsSL https://github.com/bootcraft-cn/bootcraft-cli/releases/latest/download/install.sh | sh
+# tinycs-cli installer for Linux and macOS
+# Usage: curl -fsSL https://github.com/tinycs-cn/tinycs-cli/releases/latest/download/install.sh | sh
 set -e
 
-REPO="bootcraft-cn/bootcraft-cli"
+REPO="tinycs-cn/tinycs-cli"
 INSTALL_DIR="/usr/local/bin"
-BIN="bootcraft"
+BIN="tinycs"
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 arch=$(uname -m)
@@ -29,7 +29,7 @@ esac
 URL="https://github.com/${REPO}/releases/latest/download/${BIN}-${os}-${arch}"
 DEST="${INSTALL_DIR}/${BIN}"
 
-echo "Downloading bootcraft ($os/$arch)..."
+echo "Downloading tinycs ($os/$arch)..."
 if command -v curl >/dev/null 2>&1; then
   curl -fsSL "$URL" -o "$DEST"
 elif command -v wget >/dev/null 2>&1; then

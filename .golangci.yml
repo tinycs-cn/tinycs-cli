@@ -1,4 +1,4 @@
-# golangci-lint v2 config for bootcraft-cli
+# golangci-lint v2 config for tinycs-cli
 # Docs: https://golangci-lint.run/usage/configuration/
 
 version: "2"

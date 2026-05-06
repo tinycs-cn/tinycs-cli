@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	DefaultAPIURL = "https://api.bootcraft.cn"
-	configDirName = ".bootcraft"
+	DefaultAPIURL = "https://api.tinycs.cn"
+	configDirName = ".tinycs"
 	configFile    = "config.yml"
 )
 
@@ -55,7 +55,7 @@ func (c *Config) Save() error {
 }
 
 func (c *Config) GetToken() string {
-	if env := os.Getenv("BOOTCRAFT_TOKEN"); env != "" {
+	if env := os.Getenv("TINYCS_TOKEN"); env != "" {
 		return env
 	}
 	return c.Token

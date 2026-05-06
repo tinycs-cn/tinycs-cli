@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bootcraft-cn/cli/internal/version"
+	"github.com/tinycs-cn/cli/internal/version"
 )
 
 type Client struct {
@@ -54,7 +54,7 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
-	req.Header.Set("User-Agent", "bootcraft-cli/"+version.Version)
+	req.Header.Set("User-Agent", "tinycs-cli/"+version.Version)
 	return c.HTTPClient.Do(req)
 }
 

@@ -8,9 +8,9 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/bootcraft-cn/cli/internal/client"
-	"github.com/bootcraft-cn/cli/internal/config"
-	"github.com/bootcraft-cn/cli/internal/ui"
+	"github.com/tinycs-cn/cli/internal/client"
+	"github.com/tinycs-cn/cli/internal/config"
+	"github.com/tinycs-cn/cli/internal/ui"
 )
 
 func LoginCommand(args []string) error {
@@ -90,13 +90,13 @@ func pollForToken(c *client.Client, code string, expiresIn int) (token, username
 		case "success":
 			return result.Token, result.Username, nil
 		case "expired":
-			return "", "", errors.New("授权超时，请重新运行 bootcraft login")
+			return "", "", errors.New("授权超时，请重新运行 tinycs login")
 		}
 
 		time.Sleep(1 * time.Second)
 		ui.Print(".")
 	}
-	return "", "", errors.New("等待超时，请重新运行 bootcraft login")
+	return "", "", errors.New("等待超时，请重新运行 tinycs login")
 }
 
 func openBrowser(url string) {

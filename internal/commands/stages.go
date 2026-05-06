@@ -4,11 +4,11 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/bootcraft-cn/cli/internal/client"
-	"github.com/bootcraft-cn/cli/internal/config"
+	"github.com/tinycs-cn/cli/internal/client"
+	"github.com/tinycs-cn/cli/internal/config"
 )
 
-// StagesCommand implements "bootcraft stages".
+// StagesCommand implements "tinycs stages".
 // Reads the current project's course slug (via resolveProject) then calls
 // GET /v1/courses/{slug} to list all stage slugs with their positions and names.
 func StagesCommand(args []string) error {

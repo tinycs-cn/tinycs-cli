@@ -1,4 +1,4 @@
-module github.com/bootcraft-cn/cli
+module github.com/tinycs-cn/cli
 
 go 1.23.0
 

@@ -13,20 +13,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bootcraft-cn/cli/internal/client"
-	"github.com/bootcraft-cn/cli/internal/config"
-	"github.com/bootcraft-cn/cli/internal/ui"
+	"github.com/tinycs-cn/cli/internal/client"
+	"github.com/tinycs-cn/cli/internal/config"
+	"github.com/tinycs-cn/cli/internal/ui"
 
 	"gopkg.in/yaml.v3"
 )
 
-type bootcraftMeta struct {
+type tinycsMeta struct {
 	Course   string `yaml:"course"`
 	Language string `yaml:"language"`
 }
 
 // trackURLPath maps API track values to web URL path segments.
-// Mirrors bootcraft-web-cn/apps/main/src/config/tracks.ts.
+// Mirrors tinycs-web-cn/apps/main/src/config/tracks.ts.
 func trackURLPath(track string) string {
 	switch track {
 	case "system":
@@ -36,21 +36,21 @@ func trackURLPath(track string) string {
 	}
 }
 
-// SubmitCommand implements "bootcraft submit".
+// SubmitCommand implements "tinycs submit".
 //
 // v2 flow (git push based):
 //  1. Load auth token from config
-//  2. Resolve course + language + project dir (remote URL → bootcraft.yml fallback)
-//  3. Ensure "bootcraft" remote exists with clean URL
+//  2. Resolve course + language + project dir (remote URL → tinycs.yml fallback)
+//  3. Ensure "tinycs" remote exists with clean URL
 //  4. Build commit message (injecting [stage=xxx] if --stage given)
 //  5. git add -A && git commit --allow-empty
-//  6. git push bootcraft HEAD:main  (token embedded temporarily, restored by defer)
+//  6. git push tinycs HEAD:main  (token embedded temporarily, restored by defer)
 //  7. Poll GET /v1/cli/submissions/by-commit (6×500ms) to get submission ID
 //  8. Stream eval logs via SSE → render final result
 func SubmitCommand(args []string) error {
 	flags := flag.NewFlagSet("submit", flag.ContinueOnError)
 	stage := flags.String("stage", "", "指定评测关卡 (slug)")
-	message := flags.String("message", "", "自定义 commit message（默认：\"bootcraft submit\"）")
+	message := flags.String("message", "", "自定义 commit message（默认：\"tinycs submit\"）")
 	dryRun := flags.Bool("dry-run", false, "打印将执行的 git 命令，不实际推送")
 	apiURL := flags.String("api-url", "", "API 地址（内部测试用）")
 	if err := flags.Parse(args); err != nil {
@@ -64,7 +64,7 @@ func SubmitCommand(args []string) error {
 	}
 	token := cfg.GetToken()
 	if token == "" {
-		return errors.New("未登录，请先运行: bootcraft login")
+		return errors.New("未登录，请先运行: tinycs login")
 	}
 
 	// 2. Resolve course + language + project dir
@@ -73,8 +73,8 @@ func SubmitCommand(args []string) error {
 		return err
 	}
 
-	// 3. Ensure bootcraft remote exists (clean URL, no token)
-	if err := ensureBootcraftRemote(projectDir, course, language); err != nil {
+	// 3. Ensure tinycs remote exists (clean URL, no token)
+	if err := ensureTinycsRemote(projectDir, course, language); err != nil {
 		return err
 	}
 
@@ -95,7 +95,7 @@ func SubmitCommand(args []string) error {
 		ui.Println("[dry-run] 将执行以下操作：")
 		ui.Printf("  git -C %q add -A\n", projectDir)
 		ui.Printf("  git -C %q commit --allow-empty -m %q\n", projectDir, commitMsg)
-		ui.Printf("  git -C %q push bootcraft HEAD:main\n", projectDir)
+		ui.Printf("  git -C %q push tinycs HEAD:main\n", projectDir)
 		return nil
 	}
 
@@ -116,7 +116,7 @@ func SubmitCommand(args []string) error {
 	ui.Printf(" (commit: %.7s)\n", commitSHA)
 
 	// 6. git push (token embedded in remote URL, restored by withTokenRemote's defer)
-	ui.Println("🚀 推送到 Bootcraft...")
+	ui.Println("🚀 推送到 Tinycs...")
 	pushErr := withTokenRemote(projectDir, token, course, language, func() error {
 		return runGitPush(projectDir)
 	})
@@ -143,8 +143,8 @@ func SubmitCommand(args []string) error {
 // resolveProject returns course, language, and the git repo root directory.
 //
 // Resolution order:
-//  1. "bootcraft" remote URL (daily path — no files needed)
-//  2. bootcraft.yml walking up from cwd (first-time setup path)
+//  1. "tinycs" remote URL (daily path — no files needed)
+//  2. tinycs.yml walking up from cwd (first-time setup path)
 //
 // The returned projectDir is always the git repo root (from git rev-parse
 // --show-toplevel), which is the correct base for all git sub-commands.
@@ -160,22 +160,22 @@ func resolveProject() (course, language, projectDir string, err error) {
 	}
 
 	// ① Remote URL (covers 99% of daily submits once remote is configured)
-	remoteURL := runGit(projectDir, "remote", "get-url", "bootcraft")
+	remoteURL := runGit(projectDir, "remote", "get-url", "tinycs")
 	if remoteURL != "" {
 		c, l, rerr := parseRepoSlug(remoteURL)
 		if rerr == nil {
 			return c, l, projectDir, nil
 		}
-		// URL exists but not a recognisable bootcraft slug — fall through to yml
+		// URL exists but not a recognisable tinycs slug — fall through to yml
 	}
 
-	// ② bootcraft.yml — walk up from cwd (mirrors v1 behaviour for nested projects)
+	// ② tinycs.yml — walk up from cwd (mirrors v1 behaviour for nested projects)
 	dir := cwd
 	for {
-		configPath := filepath.Join(dir, "bootcraft.yml")
+		configPath := filepath.Join(dir, "tinycs.yml")
 		data, ferr := os.ReadFile(configPath)
 		if ferr == nil {
-			var meta bootcraftMeta
+			var meta tinycsMeta
 			if yerr := yaml.Unmarshal(data, &meta); yerr == nil &&
 				meta.Course != "" && meta.Language != "" {
 				return meta.Course, meta.Language, projectDir, nil
@@ -189,19 +189,19 @@ func resolveProject() (course, language, projectDir string, err error) {
 	}
 
 	return "", "", "", errors.New(
-		"找不到 Bootcraft remote，请在课程目录中运行，\n" +
-			"或先到 https://www.bootcraft.cn 创建仓库后克隆模版",
+		"找不到 Tinycs remote，请在课程目录中运行，\n" +
+			"或先到 https://www.tinycs.cn 创建仓库后克隆模版",
 	)
 }
 
 // buildCommitMessage constructs the git commit message for a submit.
 //
-//	No flags          → "bootcraft submit"
-//	--stage s03       → "bootcraft submit [stage=s03]"
+//	No flags          → "tinycs submit"
+//	--stage s03       → "tinycs submit [stage=s03]"
 //	--message "msg"   → "msg"
 //	--message + stage → "msg [stage=s03]"
 func buildCommitMessage(customMsg, stageSlug string) string {
-	base := "bootcraft submit"
+	base := "tinycs submit"
 	if customMsg != "" {
 		base = customMsg
 	}
@@ -427,7 +427,7 @@ func renderResult(result *client.SubmissionStatusResponse, skipLogs bool) error 
 		ui.Success(fmt.Sprintf("✅ %s「%s」通过！%s", result.StageSlug, result.StageName, durationStr))
 		if result.StagePosition > 0 && result.CourseSlug != "" && result.CourseTrack != "" && result.Language != "" {
 			fmt.Println()
-			url := fmt.Sprintf("https://www.bootcraft.cn/courses/%s/%s/repos/%s/stages/%d",
+			url := fmt.Sprintf("https://www.tinycs.cn/courses/%s/%s/repos/%s/stages/%d",
 				trackURLPath(result.CourseTrack), result.CourseSlug, result.Language, result.StagePosition)
 			ui.Info(fmt.Sprintf("👉 前往网页点击「完成本关」解锁下一关：%s", url))
 		}

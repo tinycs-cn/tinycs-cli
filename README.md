@@ -1,36 +1,36 @@
-# bootcraft-cli
+# tinycs-cli
 
-[![CI](https://github.com/bootcraft-cn/bootcraft-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/bootcraft-cn/bootcraft-cli/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/bootcraft-cn/bootcraft-cli?logo=github)](https://github.com/bootcraft-cn/bootcraft-cli/releases/latest)
+[![CI](https://github.com/tinycs-cn/tinycs-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/tinycs-cn/tinycs-cli/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/tinycs-cn/tinycs-cli?logo=github)](https://github.com/tinycs-cn/tinycs-cli/releases/latest)
 
-Bootcraft 平台命令行工具，用于提交课程代码并获取实时评测结果。
+Tinycs 平台命令行工具，用于提交课程代码并获取实时评测结果。
 
 ## 安装
 
 ### macOS / Linux（推荐）
 
 ```bash
-curl -fsSL https://github.com/bootcraft-cn/bootcraft-cli/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/tinycs-cn/tinycs-cli/releases/latest/download/install.sh | sh
 ```
 
 ### Windows（PowerShell）
 
 ```powershell
-irm https://github.com/bootcraft-cn/bootcraft-cli/releases/latest/download/bootcraft-windows-amd64.exe -OutFile "$env:USERPROFILE\bootcraft.exe"
+irm https://github.com/tinycs-cn/tinycs-cli/releases/latest/download/tinycs-windows-amd64.exe -OutFile "$env:USERPROFILE\tinycs.exe"
 ```
 
-> 下载后将 `bootcraft.exe` 所在目录加入系统 PATH，或移动到已在 PATH 中的目录。
+> 下载后将 `tinycs.exe` 所在目录加入系统 PATH，或移动到已在 PATH 中的目录。
 
 ### 从源码构建（需 Go 1.23+，三端通用）
 
 ```bash
-go install github.com/bootcraft-cn/bootcraft-cli/cmd/bootcraft@latest
+go install github.com/tinycs-cn/tinycs-cli/cmd/tinycs@latest
 ```
 
 安装完成后验证：
 
 ```bash
-bootcraft version
+tinycs version
 ```
 
 ## 快速上手
@@ -39,15 +39,15 @@ bootcraft version
 
 ```bash
 # 浏览器授权登录（推荐）
-bootcraft login
+tinycs login
 
 # 或使用 Token 登录
-bootcraft login --token bc_xxx
+tinycs login --token tcs_xxx
 ```
 
 ### 2. 进入课程目录
 
-课程目录中需要有 `bootcraft.yml` 文件：
+课程目录中需要有 `tinycs.yml` 文件：
 
 ```yaml
 course: tinydsa
@@ -57,20 +57,20 @@ language: python
 ### 3. 提交代码
 
 ```bash
-bootcraft submit
+tinycs submit
 ```
 
 提交后 CLI 会实时输出评测日志，评测通过时自动解锁下一关。
 
 ## 命令参考
 
-### `bootcraft login`
+### `tinycs login`
 
 | 选项              | 说明                                |
 | ----------------- | ----------------------------------- |
 | `--token <token>` | 使用 API Token 登录，跳过浏览器授权 |
 
-### `bootcraft submit`
+### `tinycs submit`
 
 | 选项              | 说明                   |
 | ----------------- | ---------------------- |
@@ -78,15 +78,15 @@ bootcraft submit
 | `--dry-run`       | 仅预览打包文件，不上传 |
 | `--message <msg>` | 自定义提交备注         |
 
-### `bootcraft stages`
+### `tinycs stages`
 
 列出当前课程的所有关卡序号、Slug 和名称。
 
 ```bash
-bootcraft stages
+tinycs stages
 ```
 
-### `bootcraft version`
+### `tinycs version`
 
 显示版本号和构建信息。
 
@@ -106,25 +106,14 @@ bootcraft stages
 
 ## 环境变量
 
-| 变量              | 说明                                   |
-| ----------------- | -------------------------------------- |
-| `BOOTCRAFT_TOKEN` | API Token，优先于配置文件（适用于 CI） |
-| `NO_COLOR`        | 设置后禁用彩色输出                     |
-
-## CI 集成
-
-```bash
-export BOOTCRAFT_TOKEN=bc_xxx
-bootcraft submit --force
-```
-
-评测通过退出码为 `0`，失败为 `1`，可直接用于 CI 流水线判断。
-
-> 想让 starter 仓库 `git push` 自动触发评测？参见 [docs/github-action/](docs/github-action/) — 内含可复制的 workflow 模板。
+| 变量           | 说明                                   |
+| -------------- | -------------------------------------- |
+| `TINYCS_TOKEN` | API Token，优先于配置文件（适用于 CI） |
+| `NO_COLOR`     | 设置后禁用彩色输出                     |
 
 ## 配置文件
 
-登录后凭证保存在 `~/.bootcraft/config.yml`（权限 `0600`）。
+登录后凭证保存在 `~/.tinycs/config.yml`（权限 `0600`）。
 
 ## 发布流程（维护者）
 
@@ -138,7 +127,7 @@ bootcraft submit --force
 
 3. `.github/workflows/release.yml` 会自动跑 GoReleaser，产出多平台二进制 + checksums，发到 GitHub Releases
 
-4. 学员 starter 的 `bootcraft-submit.yml` 默认拉 `releases/latest/download/bootcraft-linux-amd64`，发布后立刻生效
+4. 学员 starter 的 `tinycs-submit.yml` 默认拉 `releases/latest/download/tinycs-linux-amd64`，发布后立刻生效
 
 **本地预演**（无需打 tag、不会 push）：
 

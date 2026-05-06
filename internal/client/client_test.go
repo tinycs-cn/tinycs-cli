@@ -66,8 +66,8 @@ func TestInitCLIAuth(t *testing.T) {
 		}
 		w.WriteHeader(201)
 		json.NewEncoder(w).Encode(map[string]any{
-			"code":      "bc_tmp_abc123",
-			"authUrl":   "https://bootcraft.cn/cli-auth?code=bc_tmp_abc123",
+			"code":      "tcs_tmp_abc123",
+			"authUrl":   "https://tinycs.cn/cli-auth?code=tcs_tmp_abc123",
 			"expiresIn": 300,
 		})
 	}))
@@ -78,8 +78,8 @@ func TestInitCLIAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.Code != "bc_tmp_abc123" {
-		t.Errorf("expected code bc_tmp_abc123, got %q", resp.Code)
+	if resp.Code != "tcs_tmp_abc123" {
+		t.Errorf("expected code tcs_tmp_abc123, got %q", resp.Code)
 	}
 	if resp.ExpiresIn != 300 {
 		t.Errorf("expected expiresIn 300, got %d", resp.ExpiresIn)
@@ -92,7 +92,7 @@ func TestGetCLIAuthToken(t *testing.T) {
 		if code == "valid" {
 			json.NewEncoder(w).Encode(map[string]any{
 				"status":   "success",
-				"token":    "bc_final_token",
+				"token":    "tcs_final_token",
 				"username": "william",
 			})
 		} else {
@@ -109,7 +109,7 @@ func TestGetCLIAuthToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.Status != "success" || resp.Token != "bc_final_token" {
+	if resp.Status != "success" || resp.Token != "tcs_final_token" {
 		t.Errorf("unexpected response: %+v", resp)
 	}
 

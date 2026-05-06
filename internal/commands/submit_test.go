@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bootcraft-cn/cli/internal/client"
+	"github.com/tinycs-cn/cli/internal/client"
 )
 
 func TestRenderResult_BusyLogs(t *testing.T) {

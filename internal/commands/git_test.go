@@ -11,14 +11,14 @@ import (
 // --- parseRepoSlug ---
 
 func TestParseRepoSlug_Standard(t *testing.T) {
-	c, l, err := parseRepoSlug("https://git.bootcraft.cn/tinydsa-java.git")
+	c, l, err := parseRepoSlug("https://git.tinycs.cn/tinydsa-java.git")
 	if err != nil || c != "tinydsa" || l != "java" {
 		t.Fatalf("got (%q, %q, %v)", c, l, err)
 	}
 }
 
 func TestParseRepoSlug_WithToken(t *testing.T) {
-	c, l, err := parseRepoSlug("https://x:TOKEN@git.bootcraft.cn/leetml-python.git")
+	c, l, err := parseRepoSlug("https://x:TOKEN@git.tinycs.cn/leetml-python.git")
 	if err != nil || c != "leetml" || l != "python" {
 		t.Fatalf("got (%q, %q, %v)", c, l, err)
 	}
@@ -26,7 +26,7 @@ func TestParseRepoSlug_WithToken(t *testing.T) {
 
 func TestParseRepoSlug_MultiHyphenCourse(t *testing.T) {
 	// course "my-course" + language "go" — last hyphen is the separator
-	c, l, err := parseRepoSlug("https://git.bootcraft.cn/my-course-go.git")
+	c, l, err := parseRepoSlug("https://git.tinycs.cn/my-course-go.git")
 	if err != nil || c != "my-course" || l != "go" {
 		t.Fatalf("got (%q, %q, %v)", c, l, err)
 	}
@@ -34,21 +34,21 @@ func TestParseRepoSlug_MultiHyphenCourse(t *testing.T) {
 
 func TestParseRepoSlug_NoExtension(t *testing.T) {
 	// .git suffix is optional in practice
-	c, l, err := parseRepoSlug("https://git.bootcraft.cn/tinydsa-java")
+	c, l, err := parseRepoSlug("https://git.tinycs.cn/tinydsa-java")
 	if err != nil || c != "tinydsa" || l != "java" {
 		t.Fatalf("got (%q, %q, %v)", c, l, err)
 	}
 }
 
 func TestParseRepoSlug_NoDash(t *testing.T) {
-	_, _, err := parseRepoSlug("https://git.bootcraft.cn/nodash.git")
+	_, _, err := parseRepoSlug("https://git.tinycs.cn/nodash.git")
 	if err == nil {
 		t.Fatal("expected error for URL with no hyphen in repo slug")
 	}
 }
 
 func TestParseRepoSlug_TrailingDash(t *testing.T) {
-	_, _, err := parseRepoSlug("https://git.bootcraft.cn/trailing-.git")
+	_, _, err := parseRepoSlug("https://git.tinycs.cn/trailing-.git")
 	if err == nil {
 		t.Fatal("expected error for URL ending in hyphen (empty language)")
 	}
@@ -57,15 +57,15 @@ func TestParseRepoSlug_TrailingDash(t *testing.T) {
 // --- stripToken ---
 
 func TestStripToken_WithToken(t *testing.T) {
-	got := stripToken("https://x:mytoken@git.bootcraft.cn/tinydsa-java.git")
-	want := "https://git.bootcraft.cn/tinydsa-java.git"
+	got := stripToken("https://x:mytoken@git.tinycs.cn/tinydsa-java.git")
+	want := "https://git.tinycs.cn/tinydsa-java.git"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 
 func TestStripToken_WithoutToken(t *testing.T) {
-	url := "https://git.bootcraft.cn/tinydsa-java.git"
+	url := "https://git.tinycs.cn/tinydsa-java.git"
 	if got := stripToken(url); got != url {
 		t.Fatalf("stripToken changed a URL with no credentials: got %q", got)
 	}
@@ -74,13 +74,13 @@ func TestStripToken_WithoutToken(t *testing.T) {
 // --- buildCommitMessage ---
 
 func TestBuildCommitMessage_Default(t *testing.T) {
-	if got := buildCommitMessage("", ""); got != "bootcraft submit" {
+	if got := buildCommitMessage("", ""); got != "tinycs submit" {
 		t.Fatalf("got %q", got)
 	}
 }
 
 func TestBuildCommitMessage_WithStage(t *testing.T) {
-	if got := buildCommitMessage("", "s03"); got != "bootcraft submit [stage=s03]" {
+	if got := buildCommitMessage("", "s03"); got != "tinycs submit [stage=s03]" {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -111,7 +111,7 @@ func TestFormatPushError_NonFastForward(t *testing.T) {
 }
 
 func TestFormatPushError_AuthFailed(t *testing.T) {
-	err := formatPushError(&gitPushError{Stderr: "fatal: Authentication failed for 'https://git.bootcraft.cn/'"}, "tinydsa", "java")
+	err := formatPushError(&gitPushError{Stderr: "fatal: Authentication failed for 'https://git.tinycs.cn/'"}, "tinydsa", "java")
 	if err == nil {
 		t.Fatal("expected non-nil error")
 	}
