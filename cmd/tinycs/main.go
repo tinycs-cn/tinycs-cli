@@ -23,6 +23,8 @@ func main() {
 		err = commands.SubmitCommand(os.Args[2:])
 	case "stages":
 		err = commands.StagesCommand(os.Args[2:])
+	case "test":
+		err = commands.TestCommand(os.Args[2:])
 	case "version", "--version", "-v":
 		commands.VersionCommand()
 		return
@@ -53,6 +55,7 @@ func printUsage() {
 命令:
   login     登录 Tinycs 平台
   submit    提交代码进行评测
+  test      本地运行 tester 评测
   stages    列出当前课程的所有关卡 slug
   version   显示版本信息
 
@@ -65,5 +68,8 @@ func printUsage() {
   tinycs submit                    提交当前目录代码
   tinycs submit --stage softmax    指定评测关卡
   tinycs submit --dry-run          仅预览打包内容
-  tinycs stages                    列出当前课程所有关卡 slug`)
+  tinycs stages                    列出当前课程所有关卡 slug
+  tinycs test                      本地评测当前关卡
+  tinycs test --stage softmax      本地评测指定关卡
+  tinycs test --all                本地评测所有关卡`)
 }
