@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // testerRunner abstracts running a tester — either as a local binary or via Docker.
@@ -38,7 +39,10 @@ type dockerRunner struct {
 }
 
 func (r *dockerRunner) Run(projectDir, stageSlug string, all bool) error {
-	image := fmt.Sprintf("ghcr.io/tinycs-cn/%s-tester:%s", r.course, r.version)
+	// Docker image tags follow semver without the "v" prefix (e.g. "0.4.0"),
+	// while GitHub Release tags use "v" (e.g. "v0.4.0"). Strip it here.
+	imageTag := strings.TrimPrefix(r.version, "v")
+	image := fmt.Sprintf("ghcr.io/tinycs-cn/%s-tester:%s", r.course, imageTag)
 	args := []string{
 		"run", "--rm",
 		"-v", projectDir + ":/workspace",
