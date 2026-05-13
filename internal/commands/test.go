@@ -71,6 +71,8 @@ func TestCommand(args []string) error {
 	}
 
 	// 5. Run tester
+	fmt.Println("🧪 本地评测（结果不计入提交记录）")
+	fmt.Println()
 	cmd := exec.Command(testerBin, cmdArgs...) //nolint:gosec — path resolved from trusted cache
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
