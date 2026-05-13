@@ -78,6 +78,18 @@ tinycs submit
 | `--dry-run`       | 仅预览打包文件，不上传 |
 | `--message <msg>` | 自定义提交备注         |
 
+### `tinycs test`
+
+在本地运行评测（结果不计入提交记录）。
+
+| 选项                   | 说明                               |
+| ---------------------- | ---------------------------------- |
+| `--stage <slug>`       | 指定评测关卡（省略则自动推断）     |
+| `--all`                | 测试所有关卡                       |
+| `--tester-path <path>` | 直接指定本地 tester 路径（调试用） |
+
+tester 二进制按课程独立缓存在 `~/.tinycs/testers/<course>/`，首次运行自动从 GitHub Releases 下载，24 小时内复用缓存。
+
 ### `tinycs stages`
 
 列出当前课程的所有关卡序号、Slug 和名称。
