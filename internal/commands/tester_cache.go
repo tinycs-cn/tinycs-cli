@@ -74,7 +74,10 @@ func ensureTester(course string) (string, error) {
 	}
 
 	// 5. Download the new binary.
-	platform := testerPlatform()
+	platform, err := testerPlatform()
+	if err != nil {
+		return "", err
+	}
 	fname := fmt.Sprintf("%s-tester-%s", course, platform)
 	dlURL := fmt.Sprintf(
 		"https://github.com/tinycs-cn/%s-tester/releases/download/%s/%s",
@@ -125,13 +128,21 @@ func fetchLatestTesterRelease(course string) (string, error) {
 	return rel.TagName, nil
 }
 
-func testerPlatform() string {
+func testerPlatform() (string, error) {
 	goos := runtime.GOOS
 	goarch := runtime.GOARCH
-	if goos == "windows" {
-		return "windows-amd64.exe"
+	switch {
+	case goos == "linux" && goarch == "amd64":
+		return "linux-amd64", nil
+	case goos == "linux" && goarch == "arm64":
+		return "linux-arm64", nil
+	case goos == "darwin" && goarch == "amd64":
+		return "darwin-amd64", nil
+	case goos == "darwin" && goarch == "arm64":
+		return "darwin-arm64", nil
+	default:
+		return "", fmt.Errorf("未支持的平台: %s/%s", goos, goarch)
 	}
-	return fmt.Sprintf("%s-%s", goos, goarch)
 }
 
 func downloadTesterBinary(url, dest string) error {
