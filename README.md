@@ -21,6 +21,8 @@ irm https://github.com/tinycs-cn/tinycs-cli/releases/latest/download/tinycs-wind
 
 > 下载后将 `tinycs.exe` 所在目录加入系统 PATH，或移动到已在 PATH 中的目录。
 
+> **`tinycs test` 在 Windows 上通过 Docker 容器运行评测器，需安装 [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/) 并确保其已启动。**
+
 ### 从源码构建（需 Go 1.23+，三端通用）
 
 ```bash
@@ -89,7 +91,7 @@ tinycs submit
 | `--docker`             | 强制使用 Docker 容器运行 tester（macOS/Linux 可选，Windows 默认） |
 | `--tester-path <path>` | 直接指定本地 tester 路径（调试用）                                |
 
-tester 二进制按课程独立缓存在 `~/.tinycs/testers/<course>/`，首次运行自动从 GitHub Releases 下载，24 小时内复用缓存。
+tester 按课程独立缓存在 `~/.tinycs/testers/<course>/`，首次运行自动从 GitHub Releases 下载，24 小时内复用缓存。Windows 上改用 Docker 镜像（`ghcr.io/tinycs-cn/<course>-tester`），无需下载二进制。
 
 ### `tinycs stages`
 
