@@ -74,26 +74,47 @@ tester 每门课对应一个独立 GitHub 仓库（如 `tinycs-cn/tinynum-tester
 
 客户端按 `runtime.GOOS`/`runtime.GOARCH` 自动选择，无需服务端介入：
 
-| GOOS    | GOARCH | 文件名后缀          |
-| ------- | ------ | ------------------- |
-| darwin  | arm64  | `darwin-arm64`      |
-| darwin  | amd64  | `darwin-amd64`      |
-| linux   | amd64  | `linux-amd64`       |
-| linux   | arm64  | `linux-arm64`       |
-| windows | amd64  | `windows-amd64.exe` |
+| GOOS   | GOARCH | 文件名后缀     | 运行方式   |
+| ------ | ------ | -------------- | ---------- |
+| darwin | arm64  | `darwin-arm64` | 原生二进制 |
+| darwin | amd64  | `darwin-amd64` | 原生二进制 |
+| linux  | amd64  | `linux-amd64`  | 原生二进制 |
+| linux  | arm64  | `linux-arm64`  | 原生二进制 |
+
+### Windows 支持（Docker 模式）
+
+`tester-utils` 使用了 `Setpgid`、`syscall.Kill` 等 Unix-only API（进程组管理），
+无法直接交叉编译为 Windows 二进制。
+
+Windows 上改用 Docker 容器运行 tester，行为与服务端评测环境完全一致：
+
+```bash
+docker run --rm \
+  -v "<projectDir>:/workspace" \
+  ghcr.io/tinycs-cn/{course}-tester:<version> \
+  -s <stage> -d /workspace
+```
+
+**实现方式**：`ensureTester` 在 `runtime.GOOS == "windows"` 时返回一个 `dockerRunner`
+而非文件路径，`TestCommand` 统一通过 `testerRunner` 接口调用，无需感知差异。
+
+**前提**：用户需安装 [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)。
+首次运行会拉取镜像（~50MB），后续版本更新与原生路径一样通过 GitHub Releases tag 驱动。
+
+> Windows Docker 模式为独立 milestone，当前版本（v0.4.0）仅支持 macOS / Linux。
 
 ### tester release.yml 已支持多平台构建
 
-tinynum-tester release.yml 已更新，构建 5 个平台的二进制：
+tinynum-tester release.yml 已更新，构建 4 个平台的二进制
+（Windows 不发布原生二进制，见上方 Windows Docker 模式说明）：
 
 ```yaml
 - name: Build binaries
   run: |
-    CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -ldflags="-s -w" -o tinynum-tester-linux-amd64   .
-    CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -ldflags="-s -w" -o tinynum-tester-linux-arm64   .
-    CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -ldflags="-s -w" -o tinynum-tester-darwin-amd64  .
-    CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags="-s -w" -o tinynum-tester-darwin-arm64  .
-    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o tinynum-tester-windows-amd64.exe .
+    CGO_ENABLED=0 GOOS=linux  GOARCH=amd64 go build -ldflags="-s -w" -o tinynum-tester-linux-amd64  .
+    CGO_ENABLED=0 GOOS=linux  GOARCH=arm64 go build -ldflags="-s -w" -o tinynum-tester-linux-arm64  .
+    CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o tinynum-tester-darwin-amd64 .
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o tinynum-tester-darwin-arm64 .
 
 - name: Create GitHub Release
   uses: softprops/action-gh-release@v2
@@ -221,13 +242,14 @@ GET /v1/current-stage?course=tinynum&language=python
 
 ## 实施步骤
 
-| 步骤 | 内容                                                                    | 依赖                |
-| ---- | ----------------------------------------------------------------------- | ------------------- |
-| 1    | ~~扩展 tester release.yml，构建 5 个平台二进制~~ ✅ 已完成              | tinynum-tester repo |
-| 2    | 实现 `ensureTester`（GitHub Releases 查询+缓存）                        | 步骤 1              |
-| 3    | ~~tinycs-api 新增 `GET /v1/current-stage?course=&language=`~~ ✅ 已完成 | —                   |
-| 4    | 实现 `TestCommand`                                                      | 步骤 2、3           |
-| 5    | 注册到 main.go                                                          | 步骤 4              |
-| 6    | submit 集成（可选）                                                     | 步骤 3              |
+| 步骤 | 内容                                                                             | 依赖                |
+| ---- | -------------------------------------------------------------------------------- | ------------------- |
+| 1    | ~~扩展 tester release.yml，构建 4 平台二进制（去除 Windows）~~ ✅ 已完成         | tinynum-tester repo |
+| 2    | ~~实现 `ensureTester`（GitHub Releases 查询+缓存，macOS/Linux）~~ ✅ 已完成      | 步骤 1              |
+| 3    | ~~tinycs-api 新增 `GET /v1/current-stage?course=&language=`~~ ✅ 已完成          | —                   |
+| 4    | ~~实现 `TestCommand`~~ ✅ 已完成                                                 | 步骤 2、3           |
+| 5    | ~~注册到 main.go~~ ✅ 已完成                                                     | 步骤 4              |
+| 6    | submit 集成（可选）                                                              | 步骤 4              |
+| 7    | Windows Docker 模式：`testerRunner` 接口 + `dockerRunner` 实现（独立 milestone） | 步骤 1              |
 
 步骤 2-5 可在步骤 1 完成前用 `--tester-path <local>` flag 先联调本地 tester 二进制。
